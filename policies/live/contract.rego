@@ -2,8 +2,7 @@ package live_check_advice
 
 import rego.v1
 
-# SampleAttribute accepts a caller-supplied type. Check its actual value too,
-# so {type: "int", value: "200"} cannot bypass Weaver's registry type advisor.
+# Weaver accepts caller-supplied types; validate the underlying value too.
 contract_value_matches(kind, value) if { contract_scalar_matches(kind, value) }
 contract_value_matches(kind, value) if {
     endswith(kind, "[]")
@@ -12,7 +11,6 @@ contract_value_matches(kind, value) if {
     every item in value { contract_scalar_matches(scalar, item) }
 }
 
-# No recursive Rego rules: array members are checked against scalar types.
 contract_scalar_matches("string", value) if { is_string(value) }
 contract_scalar_matches("boolean", value) if { is_boolean(value) }
 contract_scalar_matches("int", value) if {
@@ -43,7 +41,6 @@ deny contains {
     not contract_value_matches(expected, attr.value)
 }
 
-# Identification deliberately uses observable canonical attributes, not span names.
 contract_http_span if {
     input.sample.span.kind in {"client", "server"}
     some attr in input.sample.span.attributes
@@ -57,7 +54,6 @@ contract_has_attr(key) if {
     attr.value != ""
 }
 
-# SemConv 1.44.0, HTTP client/server spans: method is required.
 deny contains {
     "id": "semantics.http_method", "level": "violation",
     "message": "An identified HTTP client/server span needs http.request.method.",
@@ -68,8 +64,7 @@ deny contains {
     not contract_has_attr("http.request.method")
 }
 
-# HTTP 1xx-3xx MUST be Unset, or Error when another error occurred: never Ok.
-# Error remains allowed because the sample cannot prove absence of another error.
+# Other failures can justify Error even with a 1xx-3xx response.
 deny contains {
     "id": "behavior.http_success_status", "level": "violation",
     "message": "HTTP 1xx-3xx spans must use Unset, or Error for another failure; not Ok.",
@@ -85,8 +80,7 @@ deny contains {
     input.sample.span.status.code == "ok"
 }
 
-# error.type is conditionally required when the HTTP request ended in an error.
-# Do not guess whether a 4xx/5xx is an error: the instrumentation has context.
+# The instrumentation decides whether a 4xx/5xx response is an error.
 deny contains {
     "id": "behavior.http_error_type", "level": "violation",
     "message": "An HTTP span marked Error needs a non-empty error.type attribute.",

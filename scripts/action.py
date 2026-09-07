@@ -1,4 +1,4 @@
-"""GitHub adapter: inputs are data, never interpolated into generated shell code."""
+"""Map GitHub Action inputs to the checker CLI."""
 import json
 import os
 from pathlib import Path
@@ -32,7 +32,7 @@ else:
     for layer in os.environ.get("CHECK_REQUIRE", "").split():
         args += ["--require", layer]
     if command:
-        # The caller explicitly supplies a shell command in the run input.
+        # Only the run input is interpreted by a shell.
         args += ["--", "bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", command]
     else:
         args += [os.environ.get("CHECK_FILE", "telemetry.json")]

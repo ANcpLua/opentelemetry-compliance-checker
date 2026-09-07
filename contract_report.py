@@ -1,4 +1,4 @@
-"""Evidence-based layers over Weaver's existing reports and PolicyFinding format."""
+"""Convert Weaver reports into per-layer results."""
 
 from collections import Counter
 
@@ -47,7 +47,7 @@ def assessed(layer, observations, reason):
 
 
 def entities(node, path="/samples"):
-    """Visit normalized entities, never interpret application payloads as findings."""
+    """Exclude application payloads, which may resemble findings."""
     if isinstance(node, list):
         for index, value in enumerate(node):
             yield from entities(value, f"{path}/{index}")
@@ -105,7 +105,7 @@ def read_telemetry(report, layers):
 
 
 def read_compatibility(diagnostics, code, layer):
-    """A successful comparison with explicit baseline is evidence even when unchanged."""
+    """An unchanged registry is a valid comparison result."""
     if not isinstance(diagnostics, list):
         raise ValueError("Expected a Weaver diagnostic array for the registry comparison.")
     errors = []

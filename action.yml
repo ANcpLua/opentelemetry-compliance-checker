@@ -1,5 +1,5 @@
 name: OpenTelemetry compliance check
-description: Layered syntax, semantics, behavior, stability, and compatibility checks using pinned Weaver and Rego.
+description: Check telemetry files or test workloads against OpenTelemetry semantic conventions.
 branding:
   icon: check-circle
   color: blue
@@ -8,19 +8,19 @@ inputs:
     description: Weaver sample JSON file, used when run is empty.
     default: telemetry.json
   run:
-    description: Optional test command. Starts a local OTLP/gRPC receiver and checks the emitted telemetry.
+    description: Test command to run with a local OTLP/gRPC receiver.
     default: ''
   registry:
-    description: Optional custom registry. Defaults to the pinned upstream Semantic Conventions.
+    description: Weaver registry. Defaults to pinned upstream Semantic Conventions.
     default: ''
   baseline-registry:
-    description: Previous Weaver registry for compatibility checks. Unspecified means compatibility is NOT_CHECKED.
+    description: Baseline registry for compatibility checks; omitted means NOT_CHECKED.
     default: ''
   policies:
     description: Additional Rego files or directories, one path per line. Bundled advisors stay enabled.
     default: ''
   advice-data:
-    description: Optional Weaver glob for additional JSON/YAML Rego data.
+    description: Weaver glob for additional JSON/YAML Rego data.
     default: ''
   require:
     description: Space-separated layers that must have evidence (syntax semantics behavior stability compatibility).
@@ -32,11 +32,11 @@ inputs:
     description: Maximum test or file-check duration in seconds.
     default: '300'
   output:
-    description: Directory for the summary, complete Weaver report, and engine diagnostics.
+    description: Report directory.
     default: otel-report
 outputs:
   summary:
-    description: Absolute path to the machine-readable summary.
+    description: Absolute path to summary.json.
     value: ${{ steps.check.outputs.summary }}
 runs:
   using: composite

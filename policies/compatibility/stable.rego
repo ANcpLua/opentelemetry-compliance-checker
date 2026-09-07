@@ -3,7 +3,6 @@ package comparison_after_resolution
 import rego.v1
 
 # Weaver supplies the resolved candidate as input, resolved baseline as data.
-# This is a conservative project evolution policy, not a complete OTel lifecycle proof.
 contract_current_attributes := {a.key: a | some a in input.registry.attributes}
 contract_current_metrics := {m.name: m | some m in input.registry.metrics}
 
@@ -13,8 +12,7 @@ contract_type_changed(old, current) if { contract_enum(old); not contract_enum(c
 contract_type_changed(old, current) if {
     contract_enum(old)
     contract_enum(current)
-    # Additive members and editorial changes are compatible. Preserve existing
-    # member IDs and their wire values, not prose, ordering, or examples.
+    # Enum additions and documentation edits preserve compatibility.
     previous := {[m.id, m.value] | some m in old.members}
     candidate := {[m.id, m.value] | some m in current.members}
     count(previous - candidate) > 0

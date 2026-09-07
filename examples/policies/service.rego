@@ -2,7 +2,6 @@ package live_check_advice
 
 import rego.v1
 
-# Existing Weaver PolicyFinding output and JSON data; no new contract language.
 deny contains {
     "id": "semantics.service_allowlist", "level": "violation",
     "message": "service.name is outside the supplied allowlist.",

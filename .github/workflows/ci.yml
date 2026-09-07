@@ -18,7 +18,6 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      # The action installs pinned Weaver once; subsequent checks reuse it.
       - name: Verify default pinned upstream registry and action
         uses: ./
         with:

@@ -1,4 +1,4 @@
-"""Layered telemetry contract checks using pinned Weaver and Rego (stdlib only)."""
+"""Check OpenTelemetry samples and test workloads with Weaver."""
 
 import argparse
 import hashlib
@@ -79,7 +79,6 @@ def run_workload(engine_command, command, args, log):
     if os.name != "posix":
         raise ValueError("Live run mode requires Linux or macOS; file checks also work on Windows.")
     grpc_port, admin_port = available_ports()
-    # Loopback only. A command receives the collector endpoint through standard OTel env vars.
     engine_command += ["--input-source", "otlp", "--otlp-grpc-address", "127.0.0.1",
                        "--otlp-grpc-port", str(grpc_port), "--admin-port", str(admin_port),
                        "--inactivity-timeout", str(int(args.timeout) + 90)]
@@ -122,7 +121,7 @@ def run_workload(engine_command, command, args, log):
 
 
 def policy_bundle(args, run_dir, summary):
-    """Extend, never replace, the pinned default advisors with caller Rego files."""
+    """Snapshot bundled and user-supplied policies for this run."""
     directory = run_dir / "policies"
     directory.mkdir()
     paths = sorted((ROOT / "policies").rglob("*.rego"))
@@ -177,7 +176,7 @@ def check(args):
     }
     summary_path = output / "summary.json"
     summary_path.write_text(json.dumps(summary, indent=2) + "\n")
-    # A partial/aborted assessment must never serialize a passing gate.
+    # Default to failure until all phases complete.
     operational_error, cancelled = True, False
     binary = None
     phase = "input"
@@ -228,8 +227,7 @@ def check(args):
         summary.update(engine_exit_code=engine_code, workload_exit_code=workload_code)
         report_path = run_dir / "live_check.json"
         if args.mode == "check" and engine_code and not report_path.exists():
-            # Keep actual Weaver decoding failures in the syntax layer instead
-            # of disguising them as missing-report or compatibility failures.
+            # Weaver decoding errors belong to the syntax layer.
             try:
                 diagnostics = json.loads((run_dir / "engine.log").read_text())
             except (ValueError, OSError):
@@ -300,7 +298,6 @@ def interrupted(*_):
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
-    # Known subcommands remain compatible; an executable means live mode.
     if argv and argv[0] not in {"status", "check", "run", "-h", "--help"} and not argv[0].startswith("-"):
         argv = ["run", "--", *argv]
     parser = argparse.ArgumentParser(description=__doc__)
