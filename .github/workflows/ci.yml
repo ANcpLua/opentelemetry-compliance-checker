@@ -1,7 +1,12 @@
 name: Test checker
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -10,19 +15,15 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - id: pins
-        shell: bash
-        run: python3 scripts/action.py pins
-      - uses: open-telemetry/weaver/.github/actions/setup-weaver@38befce4bc68fe320d20f189465c93835ac20c12 # v0.26.1
-        with:
-          version: ${{ steps.pins.outputs.version }}
-      - run: python3 -m unittest discover -s tests -v
+      # The action installs pinned Weaver once; subsequent checks reuse it.
       - name: Verify default pinned upstream registry and action
         uses: ./
         with:
           file: examples/valid.json
+      - run: python3 -m unittest discover -s tests -v
       - name: Verify upstream rejects an invalid attribute type
         shell: bash
         run: |

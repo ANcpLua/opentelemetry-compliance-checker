@@ -100,4 +100,6 @@ python3 -m unittest discover -s tests -v
 
 The integration tests use the real pinned engine and a small test-only registry. CI additionally checks valid and invalid samples against the pinned upstream registry on Linux and macOS.
 
+CI uses standard `ubuntu-latest` and `macos-latest` runners, whose execution is [free for public repositories](https://docs.github.com/en/billing/concepts/product-billing/github-actions). Each job installs Weaver once through this action, reusing the upstream binary cache keyed by version, OS, and architecture. Runs trigger on pushes to `main`, pull requests, or manual dispatch; a newer run cancels the previous run for that branch or PR. Feature branches use the PR check to avoid duplicate push/PR runs. Both operating systems retain the full test suite and upstream checks, with a five-minute job limit.
+
 The original `SKILL.md` and incomplete `glossary.md` are retained as legacy material; neither drives the executable checker.
