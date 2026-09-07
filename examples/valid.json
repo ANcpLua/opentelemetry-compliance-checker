@@ -1,0 +1,5 @@
+[
+  {"resource": {"attributes": [{"name": "service.name", "value": "orders"}]}},
+  {"attribute": {"name": "http.request.method", "value": "GET"}},
+  {"attribute": {"name": "http.response.status_code", "value": 200}}
+]

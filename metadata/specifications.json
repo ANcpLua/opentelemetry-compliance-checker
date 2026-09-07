@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-09-07",
+  "specifications": [
+    {
+      "id": "status",
+      "version": null,
+      "status": "per-signal-and-component",
+      "url": "https://opentelemetry.io/docs/specs/status/"
+    },
+    {
+      "id": "otel",
+      "version": "1.60.0",
+      "status": "per-section",
+      "url": "https://opentelemetry.io/docs/specs/otel/",
+      "ref": "https://github.com/open-telemetry/opentelemetry-specification/tree/v1.60.0"
+    },
+    {
+      "id": "otlp",
+      "version": "1.11.0",
+      "status": "per-signal",
+      "url": "https://opentelemetry.io/docs/specs/otlp/"
+    },
+    {
+      "id": "opamp",
+      "version": null,
+      "status": "per-message-and-field",
+      "url": "https://opentelemetry.io/docs/specs/opamp/"
+    },
+    {
+      "id": "semconv",
+      "version": "1.44.0",
+      "status": "per-definition",
+      "url": "https://opentelemetry.io/docs/specs/semconv/"
+    }
+  ],
+  "signals": [
+    {
+      "signal": "traces",
+      "api": "stable",
+      "sdk": "stable",
+      "protocol": "stable"
+    },
+    {
+      "signal": "metrics",
+      "api": "stable",
+      "sdk": "mixed",
+      "protocol": "stable"
+    },
+    {
+      "signal": "baggage",
+      "api": "stable",
+      "sdk": "stable",
+      "protocol": "not-applicable"
+    },
+    {
+      "signal": "logs",
+      "api": "stable (Bridge API)",
+      "sdk": "stable",
+      "protocol": "stable"
+    },
+    {
+      "signal": "profiles",
+      "api": null,
+      "sdk": null,
+      "protocol": "development"
+    }
+  ],
+  "engine": {
+    "name": "weaver",
+    "version": "0.26.1",
+    "ref": "38befce4bc68fe320d20f189465c93835ac20c12",
+    "registry": "https://github.com/open-telemetry/semantic-conventions.git@e10a930844c6951757a43b849d364f7d056ac32b[model]"
+  },
+  "notes": [
+    "Specification status is not the implementation status of a language SDK or Collector component.",
+    "null means not stated by the selected source, not stable or unsupported.",
+    "Metadata describes the pinned baseline; it is not a claim that all listed specifications are checked."
+  ]
+}

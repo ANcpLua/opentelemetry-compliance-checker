@@ -1,0 +1,4 @@
+name: checker-tests
+description: Minimal isolated registry for adapter integration tests.
+schema_url: https://example.test/schemas/1.0.0
+stability: development

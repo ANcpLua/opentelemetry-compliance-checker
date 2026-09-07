@@ -1,0 +1,1 @@
+# Isolate CI from ambient .weaver.toml files. Engine options are explicit in otel_check.py.

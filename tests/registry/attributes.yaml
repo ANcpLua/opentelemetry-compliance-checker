@@ -1,0 +1,45 @@
+groups:
+  - id: registry.checker_tests
+    type: attribute_group
+    brief: Minimal test attributes.
+    attributes:
+      - id: service.name
+        type: string
+        brief: Service name.
+        stability: stable
+        examples: [orders]
+      - id: http.response.status_code
+        type: int
+        brief: HTTP status.
+        stability: stable
+        examples: [200]
+      - id: http.request.method
+        type: string
+        brief: HTTP method.
+        stability: stable
+        examples: [GET]
+      - id: test.experimental
+        type: string
+        brief: Deliberately unstable.
+        stability: development
+        examples: [value]
+      - id: telemetry.sdk.name
+        type: string
+        brief: Test sender SDK name.
+        stability: stable
+        examples: [opentelemetry]
+      - id: telemetry.sdk.version
+        type: string
+        brief: Test sender SDK version.
+        stability: stable
+        examples: [0.0.0]
+      - id: telemetry.sdk.language
+        type: string
+        brief: Test sender language.
+        stability: stable
+        examples: [rust]
+      - id: otel.weaver.registry_path
+        type: string
+        brief: Weaver test sender provenance (test-only fixture).
+        stability: stable
+        examples: [tests/registry]

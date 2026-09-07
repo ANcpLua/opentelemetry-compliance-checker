@@ -1,0 +1,33 @@
+name: Test checker
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  integration:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: pins
+        shell: bash
+        run: python3 scripts/action.py pins
+      - uses: open-telemetry/weaver/.github/actions/setup-weaver@38befce4bc68fe320d20f189465c93835ac20c12 # v0.26.1
+        with:
+          version: ${{ steps.pins.outputs.version }}
+      - run: python3 -m unittest discover -s tests -v
+      - name: Verify default pinned upstream registry and action
+        uses: ./
+        with:
+          file: examples/valid.json
+      - name: Verify upstream rejects an invalid attribute type
+        shell: bash
+        run: |
+          set +e
+          ./otel-check check --output .test-output/upstream-invalid examples/invalid.json
+          code=$?
+          set -e
+          test "$code" -eq 1

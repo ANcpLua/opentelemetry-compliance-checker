@@ -1,0 +1,3 @@
+[
+  {"attribute": {"name": "http.response.status_code", "value": "not-an-integer"}}
+]
