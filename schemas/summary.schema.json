@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OpenTelemetry contract check summary v2",
+  "type": "object",
+  "required": ["schema_version", "state", "exit_code", "mode", "registry", "baseline_registry", "weaver_version", "fail_on", "layers", "required_layers", "unassessed_layers", "fully_evaluated", "blocking_findings", "workload_exit_code", "run_summary_path"],
+  "properties": {
+    "schema_version": {"const": 2},
+    "state": {"enum": ["passed", "failed", "incomplete", "error", "cancelled"]},
+    "exit_code": {"enum": [0, 1, 2, 130]},
+    "mode": {"enum": ["check", "run"]},
+    "registry": {"type": "string"},
+    "baseline_registry": {"type": ["string", "null"]},
+    "weaver_version": {"type": "string"},
+    "fail_on": {"enum": ["violation", "improvement", "information"]},
+    "required_layers": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/layerName"}},
+    "unassessed_layers": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/layerName"}},
+    "fully_evaluated": {"type": "boolean"},
+    "blocking_findings": {"type": "integer", "minimum": 0},
+    "workload_exit_code": {"type": ["integer", "null"]},
+    "report_path": {"type": ["string", "null"]},
+    "run_summary_path": {"type": "string"},
+    "layers": {
+      "type": "object",
+      "required": ["syntax", "semantics", "behavior", "stability", "compatibility"],
+      "properties": {
+        "syntax": {"$ref": "#/$defs/layer"},
+        "semantics": {"$ref": "#/$defs/layer"},
+        "behavior": {"$ref": "#/$defs/layer"},
+        "stability": {"$ref": "#/$defs/layer"},
+        "compatibility": {"$ref": "#/$defs/layer"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "layerName": {"enum": ["syntax", "semantics", "behavior", "stability", "compatibility"]},
+    "layer": {
+      "type": "object",
+      "required": ["status", "scope", "reason", "observations", "findings", "evidence_file"],
+      "properties": {
+        "status": {"enum": ["PASS", "FAIL", "WARN", "NOT_CHECKED", "ERROR"]},
+        "scope": {"type": "string"},
+        "reason": {"type": "string"},
+        "observations": {"type": "integer", "minimum": 0},
+        "evidence_file": {"type": ["string", "null"]},
+        "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}}
+      }
+    },
+    "finding": {
+      "type": "object",
+      "required": ["id", "level", "message", "evidence_path"],
+      "properties": {
+        "id": {"type": "string"},
+        "level": {"enum": ["violation", "improvement", "information"]},
+        "message": {"type": "string"},
+        "evidence_path": {"type": "string"}
+      }
+    }
+  }
+}

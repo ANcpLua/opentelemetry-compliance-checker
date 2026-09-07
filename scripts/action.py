@@ -22,9 +22,30 @@ else:
             "--fail-on", os.environ.get("CHECK_FAIL_ON", "violation")]
     if registry := os.environ.get("CHECK_REGISTRY", ""):
         args += ["--registry", registry]
+    if baseline := os.environ.get("CHECK_BASELINE_REGISTRY", ""):
+        args += ["--baseline-registry", baseline]
+    if data := os.environ.get("CHECK_ADVICE_DATA", ""):
+        args += ["--advice-data", data]
+    for policy in os.environ.get("CHECK_POLICIES", "").splitlines():
+        if policy.strip():
+            args += ["--policy", policy.strip()]
+    for layer in os.environ.get("CHECK_REQUIRE", "").split():
+        args += ["--require", layer]
     if command:
         # The caller explicitly supplies a shell command in the run input.
         args += ["--", "bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", command]
     else:
         args += [os.environ.get("CHECK_FILE", "telemetry.json")]
-    raise SystemExit(subprocess.call(args))
+    summary_file = directory / "summary.json"
+    previous = summary_file.read_bytes() if summary_file.exists() else None
+    code = subprocess.call(args)
+    if (os.environ.get("GITHUB_STEP_SUMMARY") and summary_file.exists()
+            and summary_file.read_bytes() != previous):
+        summary = json.loads(summary_file.read_text())
+        with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as output:
+            output.write("### OpenTelemetry contract check\n\n| Layer | Result |\n| --- | --- |\n")
+            for name, layer in summary["layers"].items():
+                output.write(f'| {name} | {layer["status"]} |\n')
+            output.write(f'\nWorkload exit: {summary.get("workload_exit_code")}; gate exit: {code}.\n')
+            output.write("\nPASS applies only to the documented scope of each layer. NOT_CHECKED means evidence is absent.\n")
+    raise SystemExit(code)

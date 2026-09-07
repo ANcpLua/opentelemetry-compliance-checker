@@ -1,0 +1,13 @@
+[
+  {
+    "span": {
+      "name": "GET",
+      "kind": "server",
+      "status": {"code": "unset", "message": ""},
+      "attributes": [
+        {"name": "http.request.method", "value": "GET"},
+        {"name": "http.response.status_code", "value": 200}
+      ]
+    }
+  }
+]

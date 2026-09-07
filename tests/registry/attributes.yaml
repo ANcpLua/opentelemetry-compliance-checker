@@ -3,6 +3,11 @@ groups:
     type: attribute_group
     brief: Minimal test attributes.
     attributes:
+      - id: error.type
+        type: string
+        brief: Error class.
+        stability: stable
+        examples: [connection_reset]
       - id: service.name
         type: string
         brief: Service name.

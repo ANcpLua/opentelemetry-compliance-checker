@@ -22,7 +22,8 @@ jobs:
       - name: Verify default pinned upstream registry and action
         uses: ./
         with:
-          file: examples/valid.json
+          file: examples/http-valid.json
+          require: syntax semantics behavior stability
       - run: python3 -m unittest discover -s tests -v
       - name: Verify upstream rejects an invalid attribute type
         shell: bash

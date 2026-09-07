@@ -1,5 +1,5 @@
 name: OpenTelemetry compliance check
-description: Check telemetry with pinned Weaver and Semantic Conventions; fail if no telemetry is observed.
+description: Layered syntax, semantics, behavior, stability, and compatibility checks using pinned Weaver and Rego.
 branding:
   icon: check-circle
   color: blue
@@ -12,6 +12,18 @@ inputs:
     default: ''
   registry:
     description: Optional custom registry. Defaults to the pinned upstream Semantic Conventions.
+    default: ''
+  baseline-registry:
+    description: Previous Weaver registry for compatibility checks. Unspecified means compatibility is NOT_CHECKED.
+    default: ''
+  policies:
+    description: Additional Rego files or directories, one path per line. Bundled advisors stay enabled.
+    default: ''
+  advice-data:
+    description: Optional Weaver glob for additional JSON/YAML Rego data.
+    default: ''
+  require:
+    description: Space-separated layers that must have evidence (syntax semantics behavior stability compatibility).
     default: ''
   fail-on:
     description: Minimum finding level that fails CI (violation, improvement, information).
@@ -42,6 +54,10 @@ runs:
         CHECK_FILE: ${{ inputs.file }}
         CHECK_RUN: ${{ inputs.run }}
         CHECK_REGISTRY: ${{ inputs.registry }}
+        CHECK_BASELINE_REGISTRY: ${{ inputs.baseline-registry }}
+        CHECK_POLICIES: ${{ inputs.policies }}
+        CHECK_ADVICE_DATA: ${{ inputs.advice-data }}
+        CHECK_REQUIRE: ${{ inputs.require }}
         CHECK_FAIL_ON: ${{ inputs.fail-on }}
         CHECK_TIMEOUT: ${{ inputs.timeout }}
         CHECK_OUTPUT: ${{ inputs.output }}

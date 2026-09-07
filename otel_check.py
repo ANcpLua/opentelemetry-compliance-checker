@@ -1,6 +1,7 @@
-"""Small CI adapter around the pinned Weaver Rust/Rego engine (stdlib only)."""
+"""Layered telemetry contract checks using pinned Weaver and Rego (stdlib only)."""
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -12,6 +13,8 @@ import sys
 import tempfile
 import time
 import urllib.request
+
+from contract_report import LEVELS, SCOPES, finish, new_layers, read_compatibility, read_telemetry
 
 ROOT = Path(__file__).resolve().parent
 METADATA = json.loads((ROOT / "metadata/specifications.json").read_text())
@@ -118,26 +121,74 @@ def run_workload(engine_command, command, args, log):
         stop_process(engine)
 
 
+def policy_bundle(args, run_dir, summary):
+    """Extend, never replace, the pinned default advisors with caller Rego files."""
+    directory = run_dir / "policies"
+    directory.mkdir()
+    paths = sorted((ROOT / "policies").rglob("*.rego"))
+    for supplied in args.policy:
+        path = Path(supplied).resolve()
+        additions = sorted(path.rglob("*.rego")) if path.is_dir() else [path]
+        if not additions or any(not p.is_file() or p.suffix != ".rego" for p in additions):
+            raise ValueError(f"Policy must be a .rego file or a directory containing policies: {path}")
+        paths.extend(additions)
+    summary["policies"] = []
+    for index, path in enumerate(paths):
+        content = path.read_bytes()
+        (directory / f"{index:04d}-{path.name}").write_bytes(content)
+        summary["policies"].append({"path": str(path), "sha256": hashlib.sha256(content).hexdigest()})
+    return directory
+
+
+def compare_registry(binary, args, summary, run_dir):
+    layer = summary["layers"]["compatibility"]
+    if not args.baseline_registry:
+        layer["reason"] = "No --baseline-registry supplied. Specification versions alone are not compatibility evidence."
+        return
+    log_path = run_dir / "compatibility.log"
+    summary["compatibility_report_path"] = str(log_path)
+    command = [binary, "--config", str(ROOT / "checker.weaver.toml"), "registry", "check",
+               "--v2", "--registry", summary["registry"], "--baseline-registry", args.baseline_registry,
+               "--policy", str(run_dir / "policies"), "--diagnostic-format", "json", "--quiet"]
+    with log_path.open("w") as log:
+        process = subprocess.Popen(command, stdout=log, stderr=log, start_new_session=os.name == "posix")
+        try:
+            code = process.wait(timeout=args.timeout)
+        finally:
+            stop_process(process)
+    summary["compatibility_exit_code"] = code
+    raw = log_path.read_text().strip()
+    read_compatibility(json.loads(raw) if raw else [], code, layer)
+
+
 def check(args):
     output = Path(args.output).resolve()
     output.mkdir(parents=True, exist_ok=True)
     run_dir = Path(tempfile.mkdtemp(prefix="run-", dir=output))
     summary = {
-        "state": "running", "baseline": METADATA["specifications"],
+        "schema_version": 2, "state": "running", "baseline": METADATA["specifications"],
         "registry": args.registry or METADATA["engine"]["registry"],
         "weaver_version": METADATA["engine"]["version"],
         "fail_on": args.fail_on, "report_path": None,
         "engine_log": str(run_dir / "engine.log"),
+        "baseline_registry": args.baseline_registry,
+        "layers": new_layers(), "required_layers": sorted(set(args.require)),
+        "mode": args.mode, "workload_exit_code": None,
     }
     summary_path = output / "summary.json"
     summary_path.write_text(json.dumps(summary, indent=2) + "\n")
-    result = 2
+    # A partial/aborted assessment must never serialize a passing gate.
+    operational_error, cancelled = True, False
+    binary = None
+    phase = "input"
     try:
         if args.mode == "check":
             source = Path(args.input).resolve()
+            summary["input_path"] = str(source)
             samples = json.loads(source.read_text())
             if not isinstance(samples, list) or not samples:
                 raise ValueError("Input must be a non-empty Weaver sample JSON array. OTLP JSON is a different format.")
+        phase = "engine"
         binary = shutil.which(os.environ.get("WEAVER", "weaver"))
         if not binary:
             raise ValueError("Weaver is missing. Install the pinned version, or use the GitHub Action.")
@@ -145,14 +196,19 @@ def check(args):
                                  check=True, timeout=10).stdout.strip()
         if version != "weaver " + METADATA["engine"]["version"]:
             raise ValueError(f"Expected Weaver {METADATA['engine']['version']}; found {version!r}.")
+        policies = policy_bundle(args, run_dir, summary)
         engine_command = [
             binary, "--config", str(ROOT / "checker.weaver.toml"),
             "registry", "live-check", "--registry", summary["registry"],
             "--v2", "--format", "json", "--no-stream",
             "--no-stats=false", "--fail-on", args.fail_on, "--quiet",
             "--diagnostic-format", "json", "--output", str(run_dir),
+            "--advice-policies", str(policies),
         ]
-        workload_code = 0
+        if args.advice_data:
+            engine_command += ["--advice-data", args.advice_data]
+        workload_code = None
+        phase = "telemetry"
         with (run_dir / "engine.log").open("w") as log:
             if args.mode == "check":
                 engine_command += ["--input-source", str(source), "--input-format", "json"]
@@ -171,25 +227,61 @@ def check(args):
                 engine_code, workload_code = run_workload(engine_command, command, args, log)
         summary.update(engine_exit_code=engine_code, workload_exit_code=workload_code)
         report_path = run_dir / "live_check.json"
+        if args.mode == "check" and engine_code and not report_path.exists():
+            # Keep actual Weaver decoding failures in the syntax layer instead
+            # of disguising them as missing-report or compatibility failures.
+            try:
+                diagnostics = json.loads((run_dir / "engine.log").read_text())
+            except (ValueError, OSError):
+                diagnostics = []
+            if isinstance(diagnostics, list):
+                for diagnostic in diagnostics:
+                    ingest = diagnostic.get("error", {}).get("IngestError")
+                    if isinstance(ingest, dict) and isinstance(ingest.get("error"), str):
+                        phase = "input"
+                        raise ValueError(ingest["error"])
         report = json.loads(report_path.read_text())
-        stats = report["statistics"]
-        entities = stats["total_entities"]
-        if type(entities) is not int or entities <= 0:
-            raise ValueError("No telemetry was observed. A check with zero samples cannot pass.")
-        summary.update(report_path=str(report_path), entities=entities,
-                       findings=stats["advice_level_counts"])
-        result = 1 if engine_code or workload_code else 0
-        summary["state"] = "failed" if result else "passed"
-    except (OSError, ValueError, KeyError, TypeError, RuntimeError,
-            subprocess.SubprocessError, TimeoutError) as error:
-        summary.update(state="error", error=str(error))
+        summary["report_path"] = str(report_path)
+        entities, counts = read_telemetry(report, summary["layers"])
+        summary.update(entities=entities, findings=counts,
+                       registry_coverage=report["statistics"].get("registry_coverage"))
+        if engine_code and not any(LEVELS[level] >= LEVELS[args.fail_on] and count
+                                   for level, count in counts.items()):
+            raise RuntimeError("Weaver failed without a finding at the selected threshold; see engine.log.")
+        phase = "compatibility"
+        compare_registry(binary, args, summary, run_dir)
+        operational_error = False
+    except Exception as error:
+        # CLI boundary: retain unexpected failures as structured errors too.
+        operational_error = True
+        summary["error"] = str(error)
+        summary["error_type"] = type(error).__name__
+        if phase == "input":
+            summary["layers"]["syntax"].update(status="FAIL", reason=str(error))
+        elif phase == "compatibility":
+            summary["layers"]["compatibility"].update(status="ERROR", reason=str(error))
+        else:
+            for name in ("syntax", "semantics", "behavior", "stability"):
+                summary["layers"][name].update(status="ERROR", reason="Telemetry assessment did not complete: " + str(error))
         print(f"otel-check: {error}", file=sys.stderr)
     except KeyboardInterrupt:
-        result = 130
-        summary.update(state="cancelled", error="Interrupted.")
+        cancelled = True
+        summary["error"] = "Interrupted."
     finally:
-        summary["exit_code"] = result
-        summary_path.write_text(json.dumps(summary, indent=2) + "\n")
+        result = finish(summary, operational_error, cancelled)
+        summary["run_summary_path"] = str(run_dir / "summary.json")
+        for name, layer in summary["layers"].items():
+            layer["evidence_file"] = summary.get("compatibility_report_path" if name == "compatibility" else "report_path")
+        if phase == "input" and not summary["layers"]["syntax"]["evidence_file"]:
+            evidence = run_dir / "engine.log"
+            if not evidence.exists() and summary.get("input_path"):
+                evidence = Path(summary["input_path"])
+            summary["layers"]["syntax"]["evidence_file"] = str(evidence) if evidence.is_file() else None
+        serialized = json.dumps(summary, indent=2) + "\n"
+        (run_dir / "summary.json").write_text(serialized)
+        summary_path.write_text(serialized)
+    for name, layer in summary["layers"].items():
+        print(f'{name:14} {layer["status"]:11} {layer["reason"]}')
     print(f'otel-check: {summary["state"]}; {summary.get("entities", 0)} entities; '
           f'findings={summary.get("findings", {})}; report={summary_path}')
     return result
@@ -207,6 +299,10 @@ def interrupted(*_):
 
 
 def main(argv=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
+    # Known subcommands remain compatible; an executable means live mode.
+    if argv and argv[0] not in {"status", "check", "run", "-h", "--help"} and not argv[0].startswith("-"):
+        argv = ["run", "--", *argv]
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="mode", required=True)
     stat = commands.add_parser("status", help="Show the five specification baselines and signal status.")
@@ -214,6 +310,11 @@ def main(argv=None):
     for name in ("check", "run"):
         sub = commands.add_parser(name)
         sub.add_argument("--registry", help="Optional custom registry; default is the pinned upstream commit.")
+        sub.add_argument("--baseline-registry", help="Explicit previous registry for compatibility policies.")
+        sub.add_argument("--policy", action="append", default=[], help="Add a Rego file/directory; bundled advisors stay enabled.")
+        sub.add_argument("--advice-data", help="Weaver glob for additional JSON/YAML Rego data.")
+        sub.add_argument("--require", action="append", choices=tuple(SCOPES), default=[],
+                         help="Require evidence for this layer; repeat to require several layers.")
         sub.add_argument("--fail-on", choices=("violation", "improvement", "information"), default="violation")
         sub.add_argument("--output", default="otel-report")
         sub.add_argument("--timeout", type=positive, default=300)
