@@ -128,6 +128,37 @@ class CheckerTests(unittest.TestCase):
                 self.assertEqual(report["layers"]["behavior"]["status"], expected)
                 self.assertEqual(result.returncode, 1 if expected == "FAIL" else 0, result.stdout + result.stderr)
 
+    def test_unresolved_route_leaves_the_framework_span_name(self):
+        """A route that never resolved leaves the hosting layer's own operation name on the span."""
+        for name, expected in (("Microsoft.AspNetCore.Hosting.HttpRequestIn", "FAIL"),
+                               ("GET /healthz", "PASS")):
+            with self.subTest(name=name):
+                span = self.http_span()
+                span["span"]["name"] = name
+                result, report = self.invoke("check", self.sample([span]))
+                self.assertEqual(report["layers"]["behavior"]["status"], expected,
+                                 result.stdout + result.stderr)
+                self.assertEqual([f["id"] for f in report["layers"]["behavior"]["findings"]],
+                                 ["behavior.span_name.unresolved_route"] if expected == "FAIL" else [])
+
+    def test_unredacted_query_reports_the_key_and_never_the_value(self):
+        """Redaction on one copy of a request does not reach a copy emitted by another source."""
+        for url, expected in (("https://example.test/api?token=s3cr3t", "FAIL"),
+                              ("https://example.test/api", "PASS")):
+            with self.subTest(url=url):
+                span = self.http_span()
+                span["span"]["kind"] = "client"
+                span["span"]["attributes"].append({"name": "url.full", "value": url})
+                result, report = self.invoke("check", self.sample([span]))
+                findings = report["layers"]["behavior"]["findings"]
+                self.assertEqual(report["layers"]["behavior"]["status"], expected,
+                                 result.stdout + result.stderr)
+                self.assertEqual([f["id"] for f in findings],
+                                 ["behavior.attribute.unredacted_query"] if expected == "FAIL" else [])
+                # A finding names the key it is about, never the value: the report travels, the
+                # secret must not travel with it.
+                self.assertNotIn("s3cr3t", json.dumps(findings))
+
     def test_required_layer_needs_evidence(self):
         for layer in ("behavior", "compatibility"):
             result, report = self.invoke("check", "--require", layer, str(ROOT / "examples/valid.json"))
