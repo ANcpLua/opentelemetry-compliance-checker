@@ -141,10 +141,18 @@ class CheckerTests(unittest.TestCase):
                 self.assertEqual([f["id"] for f in report["layers"]["behavior"]["findings"]],
                                  ["behavior.span_name.unresolved_route"] if expected == "FAIL" else [])
 
-    def test_unredacted_query_reports_the_key_and_never_the_value(self):
-        """Redaction on one copy of a request does not reach a copy emitted by another source."""
-        for url, expected in (("https://example.test/api?token=s3cr3t", "FAIL"),
-                              ("https://example.test/api", "PASS")):
+    def test_url_full_accepts_only_the_bcl_shape(self):
+        """Since 15.0.0 System.Net.Http owns this lane and writes '*'; verify-otlp-receiver.py
+        asserts that exact string, so a per-value 'key=Redacted' here is a regression of the
+        handover, not a second correct form. A fragment before the '?' is not a query."""
+        for url, expected in (("https://x/api", "PASS"),
+                              ("https://x/api?", "PASS"),
+                              ("https://x/api?*", "PASS"),
+                              ("https://x/a#b?c", "PASS"),
+                              ("https://x/api?token=s3cr3t", "FAIL"),
+                              ("https://x/api?s3cr3t", "FAIL"),
+                              ("https://x/api?token=Redacted&real=s3cr3t", "FAIL"),
+                              ("https://x/api?sample=Redacted", "FAIL")):
             with self.subTest(url=url):
                 span = self.http_span()
                 span["span"]["kind"] = "client"
@@ -155,8 +163,26 @@ class CheckerTests(unittest.TestCase):
                                  result.stdout + result.stderr)
                 self.assertEqual([f["id"] for f in findings],
                                  ["behavior.attribute.unredacted_query"] if expected == "FAIL" else [])
-                # A finding names the key it is about, never the value: the report travels, the
-                # secret must not travel with it.
+                self.assertNotIn("s3cr3t", json.dumps(findings))
+
+    def test_url_query_requires_every_pair_redacted(self):
+        """qyl redacts per value on server spans and url.query carries no '?'. A segment without
+        '=' is returned untouched by QylCaptureHelpers.RedactQueryValues, so it reaches the tag
+        raw -- the rule must not inherit that blind spot."""
+        for query, expected in (("sample=Redacted", "PASS"),
+                                ("a=Redacted&b=Redacted", "PASS"),
+                                ("sample=1", "FAIL"),
+                                ("s3cr3t", "FAIL"),
+                                ("a=Redacted&b=1", "FAIL")):
+            with self.subTest(query=query):
+                span = self.http_span()
+                span["span"]["attributes"].append({"name": "url.query", "value": query})
+                result, report = self.invoke("check", self.sample([span]))
+                findings = report["layers"]["behavior"]["findings"]
+                self.assertEqual(report["layers"]["behavior"]["status"], expected,
+                                 result.stdout + result.stderr)
+                self.assertEqual([f["id"] for f in findings],
+                                 ["behavior.attribute.unredacted_url_query"] if expected == "FAIL" else [])
                 self.assertNotIn("s3cr3t", json.dumps(findings))
 
     def test_required_layer_needs_evidence(self):
