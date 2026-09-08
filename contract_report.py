@@ -6,7 +6,7 @@ LEVELS = {"information": 1, "improvement": 2, "violation": 3}
 SCOPES = {
     "syntax": "Weaver sample decoding and supplied attribute types/enum values; not full OTLP wire conformance.",
     "semantics": "Observed names, units, instruments, and available registry/advisor requirements.",
-    "behavior": "Identified HTTP client/server spans: 1xx-3xx status and Error/error.type relationships.",
+    "behavior": "Identified HTTP client/server spans: 1xx-3xx status and Error/error.type relationships; span naming and attribute redaction on the observed spans.",
     "stability": "Maturity/deprecation of observed definitions matched by Weaver's registry advisors.",
     "compatibility": "Stable baseline attributes: presence/type/maturity; stable metrics: presence/unit/instrument.",
 }
@@ -95,7 +95,7 @@ def read_telemetry(report, layers):
     assessed(layers["semantics"], known + unknown + len(http_spans),
              "Only registry/advisor rules applicable to the observed telemetry were evaluated.")
     assessed(layers["behavior"], len(http_spans),
-             "Evaluated the two bundled HTTP relationship rules." if http_spans else
+             "Evaluated the bundled HTTP relationship, span naming and redaction rules." if http_spans else
              "No HTTP client/server spans identified; workload exit alone is not behavior evidence.")
     assessed(layers["stability"], known,
              f"{known} matched definitions; {unknown} unknown observations have no maturity evidence.")
