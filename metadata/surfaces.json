@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-09-09",
+  "source": "metadata/surfaces.json",
+  "surfaces": [
+    {
+      "id": "qyl-api-schema",
+      "kind": "npm",
+      "provider": "npm",
+      "package": "@ancplua/qyl-api-schema"
+    },
+    {
+      "id": "qyl-mcp-server",
+      "kind": "npm",
+      "provider": "npm",
+      "package": "qyl-mcp-server"
+    },
+    {
+      "id": "qyl.at",
+      "kind": "host",
+      "provider": "cloudflare",
+      "url": "https://qyl.at/"
+    },
+    {
+      "id": "mcp.qyl.at",
+      "kind": "host",
+      "provider": "railway",
+      "url": "https://mcp.qyl.at/",
+      "health": "https://mcp.qyl.at/healthz"
+    },
+    {
+      "id": "qyl-eu",
+      "kind": "oidc",
+      "provider": "auth0",
+      "issuer": "https://qyl-eu.eu.auth0.com/"
+    }
+  ],
+  "notes": [
+    "Identities only. No version is recorded here: a version in a file is a claim, the registry answer is the evidence.",
+    "Every entry is reachable unauthenticated. A surface that needs a login is not checked by this tool.",
+    "The host name is derived from the url, and the discovery path from the issuer, so no target is written twice."
+  ]
+}

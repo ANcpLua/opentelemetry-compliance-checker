@@ -48,6 +48,48 @@ Repeat `--policy` for multiple paths and `--require` for multiple layers. In the
     require: behavior compatibility
 ```
 
+## Release surfaces
+
+```sh
+./otel-check release <owner/repo> <version> [--branch main] [--budget 10] [--draft-lag 2] [--json]
+./otel-check packages <version> <package>... [--npm] [--json]
+./otel-check surface [<id>...] [--json]
+```
+
+| CLI | Default | Meaning |
+| --- | --- | --- |
+| `--branch` | `main` | Branch head the dereferenced tag is compared against. |
+| `--budget` | 10 | Wall clock budget per workflow run, in minutes. |
+| `--draft-lag` | 2 | Minutes `published_at` may trail `created_at` before the draft window is reported. |
+| `--npm` | off | Ask `registry.npmjs.org` instead of `nuget.org`. |
+| `--timeout` | 120 | Seconds per request. |
+| `--json` | off | One JSON object per finding, instead of the human report. |
+
+No environment variable is required, and none is read. GitHub goes through the
+already-authenticated `gh` CLI; every other surface answers unauthenticated. No
+dashboard, management API, or project token is contacted.
+
+`surface` takes its targets from [`metadata/surfaces.json`](../metadata/surfaces.json),
+which records identities only — package names, URLs and the OIDC issuer. It holds
+no version: a version in a file is a claim, and the registry answer is the
+evidence. The host name is derived from the URL and the discovery path from the
+issuer, so no target is written twice. Pass surface ids to check a subset.
+
+| Finding status | Meaning |
+| --- | --- |
+| `OK` | Measured, and it matched. |
+| `WARN` | Measured, and it is a finding (for example a release left as a draft). |
+| `FAIL` | Measured, and it did not match. |
+| `UNKNOWN` | Not measurable. Never green, and never counted as a finding either. |
+| `INFO` | Context that does not gate the result. |
+
+Wall clock exists only for a completed run: `updated_at` on a running workflow is
+the last time GitHub touched it, not its end, so subtracting `created_at` yields a
+wall clock shorter than the compute already spent. An unfinished run therefore
+keeps no wall clock and gets its own `UNKNOWN` line. The start delay of a runner
+label uses the *first* start of that label, because a later start may have waited
+on an upstream job rather than on a runner.
+
 ## Reports
 
 The Action displays results in the job summary and exposes the report path through its `summary` output.

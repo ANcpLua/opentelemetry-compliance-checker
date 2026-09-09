@@ -15,6 +15,7 @@ import time
 import urllib.request
 
 from contract_report import LEVELS, SCOPES, finish, new_layers, read_compatibility, read_telemetry
+from release_surface import cmd_packages, cmd_release, cmd_surface
 
 ROOT = Path(__file__).resolve().parent
 METADATA = json.loads((ROOT / "metadata/specifications.json").read_text())
@@ -298,12 +299,32 @@ def interrupted(*_):
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
-    if argv and argv[0] not in {"status", "check", "run", "-h", "--help"} and not argv[0].startswith("-"):
+    if (argv and argv[0] not in {"status", "check", "run", "release", "packages", "surface", "-h", "--help"}
+            and not argv[0].startswith("-")):
         argv = ["run", "--", *argv]
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="mode", required=True)
     stat = commands.add_parser("status", help="Show the five specification baselines and signal status.")
     stat.add_argument("--json", action="store_true")
+    # Release surfaces. These need no credential and no environment variable:
+    # GitHub is reached through the already-authenticated gh CLI, and the package
+    # registries, DNS, the OIDC discovery document and the health endpoint are public.
+    rel = commands.add_parser("release", help="Measure a release claim: branch, tag, release entry, run timing.")
+    rel.add_argument("repo", help="owner/repo")
+    rel.add_argument("version", help="Version without the leading v.")
+    rel.add_argument("--branch", default="main", help="Branch head the dereferenced tag is compared against.")
+    rel.add_argument("--budget", type=positive, default=10, help="Wall clock budget per run, in minutes.")
+    rel.add_argument("--draft-lag", type=positive, default=2,
+                     help="Minutes published_at may trail created_at before the draft window is a finding.")
+    pack = commands.add_parser("packages", help="Measure published package versions against a registry.")
+    pack.add_argument("version", help="Expected version.")
+    pack.add_argument("package", nargs="+", help="Package ids.")
+    pack.add_argument("--npm", action="store_true", help="Ask registry.npmjs.org instead of nuget.org.")
+    surf = commands.add_parser("surface", help="Measure the public surfaces listed in metadata/surfaces.json.")
+    surf.add_argument("id", nargs="*", help="Limit to these surface ids; default is all of them.")
+    for sub in (rel, pack, surf):
+        sub.add_argument("--timeout", type=positive, default=120, help="Seconds per request.")
+        sub.add_argument("--json", action="store_true", help="One JSON object per finding.")
     for name in ("check", "run"):
         sub = commands.add_parser(name)
         sub.add_argument("--registry", help="Optional custom registry; default is the pinned upstream commit.")
@@ -323,6 +344,9 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.mode == "status":
         return status(args.json)
+    for name, command in (("release", cmd_release), ("packages", cmd_packages), ("surface", cmd_surface)):
+        if args.mode == name:
+            return command(args)
     # Reuse normal cleanup for CI cancellation.
     previous = signal.signal(signal.SIGTERM, interrupted)
     try:

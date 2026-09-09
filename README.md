@@ -44,6 +44,36 @@ To check an application, run `/path/to/otel-check dotnet test` from its test dir
 Reports are written to `otel-report/summary.json`.
 A missing baseline produces `NOT_CHECKED`; zero telemetry fails the check.
 
+## Release surfaces
+
+The same binary also measures what a release actually put in front of users, and
+reports the measured number with the source it came from.
+
+```sh
+./otel-check release ANcpLua/Qyl.OpenTelemetry.AutoInstrumentation 20.0.0
+./otel-check packages 20.0.0 Qyl.Telemetry.AutoInstrumentation
+./otel-check surface
+```
+
+`release` resolves the branch head, dereferences the tag — an annotated tag names
+a tag object, not a commit — checks the release entry including how long it sat as
+a draft, and separates each workflow run's wall clock from its compute time and
+its queue time, per runner label. `packages` asks the registry, where *not
+published* is a different state from *wrong version*. `surface` measures the
+public npm, DNS, HTTP, OIDC and health endpoints listed in
+[metadata/surfaces.json](metadata/surfaces.json).
+
+These commands need **no environment variable and no token**. GitHub is reached
+through the `gh` CLI, which already holds its own credential; package registries,
+DNS, the OIDC discovery document and the health endpoint are all public. A surface
+that cannot be read without a login is not checked here at all. If `gh` is missing
+or logged out, `release` reports `UNKNOWN` and says so — a missing prerequisite is
+never dressed up as a finding.
+
+Anything that cannot be measured is `unknown` and colours nothing green; an
+unfinished workflow run has no wall clock and gets its own `UNKNOWN` line rather
+than passing the budget check. Exit code is 0 only when every check passed.
+
 ## Documentation
 
 - [Usage](docs/usage.md) — commands, Action inputs, reports, and exit codes.
